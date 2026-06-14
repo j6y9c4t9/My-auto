@@ -1,0 +1,38 @@
+name: Sync and Extract Nodes
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天北京时间早上 10:00 自动同步更新
+  workflow_dispatch:     # 允许你随时在 GitHub 页面上手动点击运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install pyyaml
+
+      - name: Run Extraction Script
+        run: python extract_nodes.py
+
+      - name: Commit and Push if changed
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add my_subscription.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "自动更新：同步提取最新节点"
+            git push
+          else
+            echo "节点无变化，跳过更新。"
+          fi
