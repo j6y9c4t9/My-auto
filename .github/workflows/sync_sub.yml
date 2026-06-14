@@ -5,6 +5,9 @@ on:
     - cron: '0 2 * * *'  # 每天北京时间早上 10:00 自动同步更新
   workflow_dispatch:     # 允许你随时在 GitHub 页面上手动点击运行
 
+permissions:          # ← 加在这里
+  contents: write
+
 # 显式开启全局环境变量，强制拥抱 Node 24 消除警告
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
