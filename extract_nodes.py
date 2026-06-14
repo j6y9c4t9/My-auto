@@ -4,9 +4,10 @@ import os
 import sys
 from datetime import datetime
 
-# 1. 定义源 URL 和输出文件名
-# ⭐ 修改这里：将原先的 &flag=clash 改为 &flag=meta
-SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059&flag=meta"
+# 1. 动态从 GitHub Secrets / 环境变量中读取订阅地址
+# 如果本地测试，可以在系统环境变量中添加 SUB_URL，或者在此处填入备用地址
+SOURCE_URL = os.environ.get("SUB_URL", "").strip()
+
 OUTPUT_FILE = "my_subscription.yaml"
 TRAFFIC_FILE = "traffic_info.txt"
 
@@ -18,7 +19,7 @@ def safe_int(value_str):
     return int(clean_val)
 
 def parse_traffic(headers):
-    """从响应头中解析流量信息（彻底解决大小写、UA、以及空数值带来的崩溃问题）"""
+    """从响应头中解析流量信息"""
     lowercased_headers = {k.lower(): v for k, v in headers.items()}
     
     info = lowercased_headers.get('subscription-userinfo', '')
@@ -30,7 +31,6 @@ def parse_traffic(headers):
         item = item.strip()
         if '=' in item:
             key, value = item.split('=', 1)
-            # ⭐【核心修复点】：使用 safe_int 替代直接 int()，防止类似 expire= 导致 int('') 报错
             data[key.strip()] = safe_int(value)
 
     upload = data.get('upload', 0)
@@ -49,10 +49,8 @@ def parse_traffic(headers):
         else:
             return f"{b / 1024:.2f} KB"
 
-    # 如果机场没有返回过期时间，或者 expire 字段转出来是 0
     expire_str = "永久有效"
     if expire > 0:
-        # 大于 2099 年的时间戳（4102444800）通常是机场定义的永久有效标识
         if expire < 4102444800: 
             try:
                 expire_str = datetime.fromtimestamp(expire).strftime('%Y-%m-%d')
@@ -70,6 +68,18 @@ def parse_traffic(headers):
     }
 
 def main():
+    global SOURCE_URL
+    
+    # ⭐【关键防护】：检查是否成功读取到了 Secret
+    if not SOURCE_URL:
+        print("❌ 错误：未能从环境变量中读取到 'SUB_URL'。请检查 GitHub Secrets 是否配置正确！")
+        sys.exit(1)
+        
+    # ⭐【动态拼接】：自动在 Secret 链接后面附加上 Mihomo 专属的 Meta 标记
+    if "flag=" not in SOURCE_URL:
+        connector = "&" if "?" in SOURCE_URL else "?"
+        SOURCE_URL = f"{SOURCE_URL}{connector}flag=meta"
+
     try:
         print("正在下载源配置文件...")
         
@@ -89,7 +99,6 @@ def main():
             print(f"📊 剩余: {traffic['remaining']}")
             print(f"📅 到期: {traffic['expire']}")
 
-            # 写入流量信息文件
             with open(TRAFFIC_FILE, 'w', encoding='utf-8') as f:
                 f.write(f"已用: {traffic['used']} / {traffic['total']} ({traffic['percentage']})\n")
                 f.write(f"剩余: {traffic['remaining']}\n")
@@ -108,10 +117,6 @@ def main():
         
         if not isinstance(source_data, dict):
             print("\n❌ 严重错误：机场返回的内容不是合法的 YAML 配置文件！")
-            print("机场返回的前 500 个字符内容如下，极大几率触发了人机验证：")
-            print("-" * 50)
-            print(content[:500])
-            print("-" * 50)
             raise ValueError("机场订阅接口被防火墙拦截，未能正确获取到 YAML 节点数据。")
 
         proxies = source_data.get('proxies', [])
@@ -127,7 +132,7 @@ def main():
         print(f"\n运行出错: {e}")
         with open(TRAFFIC_FILE, 'w', encoding='utf-8') as f:
             f.write("流量数据获取失败\n")
-        sys.exit(1) # 确保精准触发 Telegram 的【失败通知】
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
