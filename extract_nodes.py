@@ -5,14 +5,19 @@ import sys
 from datetime import datetime
 
 # 1. 定义源 URL 和输出文件名
-# ⭐【核心优化】：加入了 &flag=clash 参数，强制诱导机场后端绕过 Cloudflare 安全拦截并吐出流量头
 SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059&flag=clash"
 OUTPUT_FILE = "my_subscription.yaml"
 TRAFFIC_FILE = "traffic_info.txt"
 
+def safe_int(value_str):
+    """安全地将字符串转换为整数，如果为空或非法则返回 0"""
+    clean_val = value_str.strip()
+    if not clean_val or not clean_val.isdigit():
+        return 0
+    return int(clean_val)
+
 def parse_traffic(headers):
-    """从响应头中解析流量信息（彻底解决大小写与UA带来的不一致问题）"""
-    # 转换为全小写字典，消除 HTTP/2 或 CDN 带来的大小写敏感坑
+    """从响应头中解析流量信息（彻底解决大小写、UA、以及空数值带来的崩溃问题）"""
     lowercased_headers = {k.lower(): v for k, v in headers.items()}
     
     info = lowercased_headers.get('subscription-userinfo', '')
@@ -24,7 +29,8 @@ def parse_traffic(headers):
         item = item.strip()
         if '=' in item:
             key, value = item.split('=', 1)
-            data[key.strip()] = int(value.strip())
+            # ⭐【核心修复点】：使用 safe_int 替代直接 int()，防止类似 expire= 导致 int('') 报错
+            data[key.strip()] = safe_int(value)
 
     upload = data.get('upload', 0)
     download = data.get('download', 0)
@@ -42,11 +48,15 @@ def parse_traffic(headers):
         else:
             return f"{b / 1024:.2f} KB"
 
+    # 如果机场没有返回过期时间，或者 expire 字段转出来是 0
     expire_str = "永久有效"
     if expire > 0:
         # 大于 2099 年的时间戳（4102444800）通常是机场定义的永久有效标识
         if expire < 4102444800: 
-            expire_str = datetime.fromtimestamp(expire).strftime('%Y-%m-%d')
+            try:
+                expire_str = datetime.fromtimestamp(expire).strftime('%Y-%m-%d')
+            except Exception:
+                expire_str = "自定义时间格式"
 
     percentage = f"{(used / total * 100):.1f}%" if total > 0 else "未知"
 
@@ -62,7 +72,6 @@ def main():
     try:
         print("正在下载源配置文件...")
         
-        # 伪装成标准的桌面端 Chrome 浏览器请求
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
@@ -85,7 +94,6 @@ def main():
                 f.write(f"剩余: {traffic['remaining']}\n")
                 f.write(f"到期: {traffic['expire']}\n")
         else:
-            # 调试防错：如果还是抓不到，直接把当前机场吐出的所有头打印在控制台/GitHub日志里
             print("⚠️ 未检测到流量信息头。当前机场返回的全部响应头如下：")
             for k, v in resp_headers.items():
                 print(f"  {k}: {v}")
@@ -97,10 +105,9 @@ def main():
         print("正在解析节点信息...")
         source_data = yaml.safe_load(content)
         
-        # ⭐【新增关键防错】：确保解析出来的是字典。如果返回了 HTML 网页（被CF拦截），在这里果断拦截报错
         if not isinstance(source_data, dict):
             print("\n❌ 严重错误：机场返回的内容不是合法的 YAML 配置文件！")
-            print("机场返回的前 500 个字符内容如下，极大概率触发了五秒盾或人机验证：")
+            print("机场返回的前 500 个字符内容如下，极大几率触发了人机验证：")
             print("-" * 50)
             print(content[:500])
             print("-" * 50)
@@ -119,7 +126,7 @@ def main():
         print(f"\n运行出错: {e}")
         with open(TRAFFIC_FILE, 'w', encoding='utf-8') as f:
             f.write("流量数据获取失败\n")
-        sys.exit(1) # 👈 确保向 GitHub Actions 扔回一个错误退出码，精准触发 Telegram 的【失败通知】
+        sys.exit(1) # 确保精准触发 Telegram 的【失败通知】
 
 if __name__ == "__main__":
     main()
