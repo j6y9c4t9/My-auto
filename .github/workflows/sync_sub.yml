@@ -31,6 +31,17 @@ jobs:
       - name: Run Extraction Script
         run: python extract_nodes.py
 
+      - name: Read traffic info
+        id: traffic
+        run: |
+          if [ -f traffic_info.txt ]; then
+            # 将文件内容转为单行，用于 Telegram 消息
+            TRAFFIC_INFO=$(cat traffic_info.txt | tr '\n' ' | ')
+            echo "info=${TRAFFIC_INFO}" >> $GITHUB_OUTPUT
+          else
+            echo "info=无流量数据" >> $GITHUB_OUTPUT
+          fi
+
       - name: Commit and Push if changed
         id: git_push
         run: |
@@ -60,6 +71,7 @@ jobs:
             *项目:* `${{ github.repository }}`
             *触发方式:* `${{ github.event_name }}`
             *更新结果:* ${{ steps.git_push.outputs.updated == 'true' && '🎉 发现新节点，已自动更新并推送！' || '😴 节点无变化，无需更新。' }}
+            *📊 流量信息:* ${{ steps.traffic.outputs.info }}
 
             [查看本次运行详情](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
