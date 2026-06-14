@@ -5,7 +5,8 @@ import sys
 from datetime import datetime
 
 # 1. 定义源 URL 和输出文件名
-SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059&flag=clash"
+# ⭐ 修改这里：将原先的 &flag=clash 改为 &flag=meta
+SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059&flag=meta"
 OUTPUT_FILE = "my_subscription.yaml"
 TRAFFIC_FILE = "traffic_info.txt"
 
