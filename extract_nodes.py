@@ -5,7 +5,8 @@ import sys
 from datetime import datetime
 
 # 1. 定义源 URL 和输出文件名
-SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059"
+# ⭐【核心优化】：加入了 &flag=clash 参数，强制诱导机场后端绕过 Cloudflare 安全拦截并吐出流量头
+SOURCE_URL = "https://liangxin.xyz/api/v1/liangxin?OwO=4bfe667383e6019a0b004e78bb91d059&flag=clash"
 OUTPUT_FILE = "my_subscription.yaml"
 TRAFFIC_FILE = "traffic_info.txt"
 
@@ -43,7 +44,7 @@ def parse_traffic(headers):
 
     expire_str = "永久有效"
     if expire > 0:
-        # 大于 2099 年的时间戳通常是机场定义的永久有效标识
+        # 大于 2099 年的时间戳（4102444800）通常是机场定义的永久有效标识
         if expire < 4102444800: 
             expire_str = datetime.fromtimestamp(expire).strftime('%Y-%m-%d')
 
@@ -61,7 +62,7 @@ def main():
     try:
         print("正在下载源配置文件...")
         
-        # ⭐【核心修改点】：伪装成浏览器请求，诱导机场后端老老实实返回流量头
+        # 伪装成标准的桌面端 Chrome 浏览器请求
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
@@ -95,6 +96,16 @@ def main():
         # 3. 解析节点
         print("正在解析节点信息...")
         source_data = yaml.safe_load(content)
+        
+        # ⭐【新增关键防错】：确保解析出来的是字典。如果返回了 HTML 网页（被CF拦截），在这里果断拦截报错
+        if not isinstance(source_data, dict):
+            print("\n❌ 严重错误：机场返回的内容不是合法的 YAML 配置文件！")
+            print("机场返回的前 500 个字符内容如下，极大概率触发了五秒盾或人机验证：")
+            print("-" * 50)
+            print(content[:500])
+            print("-" * 50)
+            raise ValueError("机场订阅接口被防火墙拦截，未能正确获取到 YAML 节点数据。")
+
         proxies = source_data.get('proxies', [])
         print(f"成功提取到 {len(proxies)} 个节点！")
 
@@ -105,10 +116,10 @@ def main():
         print(f"订阅文件 {OUTPUT_FILE} 已成功生成。")
 
     except Exception as e:
-        print(f"运行出错: {e}")
+        print(f"\n运行出错: {e}")
         with open(TRAFFIC_FILE, 'w', encoding='utf-8') as f:
             f.write("流量数据获取失败\n")
-        sys.exit(1) # 👈 让程序在这里崩溃，以便准确触发 GitHub Actions 的【失败通知】
+        sys.exit(1) # 👈 确保向 GitHub Actions 扔回一个错误退出码，精准触发 Telegram 的【失败通知】
 
 if __name__ == "__main__":
     main()
