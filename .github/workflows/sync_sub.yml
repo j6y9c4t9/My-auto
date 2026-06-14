@@ -2,13 +2,12 @@ name: Sync and Extract Nodes
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # 每天北京时间早上 10:00 自动同步更新
-  workflow_dispatch:     # 允许你随时在 GitHub 页面上手动点击运行
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-# 显式开启全局环境变量，强制拥抱 Node 24 消除警告
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -17,11 +16,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 升级到 v5 版本（原生支持 Node 24）
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # 2. 升级到 v6 版本（原生支持 Node 24）
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -34,7 +31,6 @@ jobs:
       - name: Run Extraction Script
         run: python extract_nodes.py
 
-      # 3. 提交并推送文件，并捕获是否进行了实际更新（将结果存入步骤输出）
       - name: Commit and Push if changed
         id: git_push
         run: |
@@ -51,7 +47,6 @@ jobs:
             echo "节点无变化，跳过更新。"
           fi
 
-      # 4. 运行【成功】时的 Telegram 通知
       - name: Notify Telegram on Success
         if: success()
         uses: appleboy/telegram-action@master
@@ -61,14 +56,13 @@ jobs:
           format: markdown
           message: |
             *💡 节点同步任务执行成功！*
-            
+
             *项目:* `${{ github.repository }}`
             *触发方式:* `${{ github.event_name }}`
             *更新结果:* ${{ steps.git_push.outputs.updated == 'true' && '🎉 发现新节点，已自动更新并推送！' || '😴 节点无变化，无需更新。' }}
-            
+
             [查看本次运行详情](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-      # 5. 运行【失败】时的 Telegram 报警通知
       - name: Notify Telegram on Failure
         if: failure()
         uses: appleboy/telegram-action@master
@@ -78,8 +72,17 @@ jobs:
           format: markdown
           message: |
             *⚠️ 节点同步任务失败！*
-            
+
             *项目:* `${{ github.repository }}`
             *状态:* 提取脚本报错或 Git 推送冲突，请尽快检查！
-            
+
             [前往查看错误日志排查](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Delete old workflow runs
+        if: always()
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 3
+          keep_minimum_runs: 1
