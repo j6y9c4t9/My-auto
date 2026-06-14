@@ -29,6 +29,8 @@ jobs:
           pip install pyyaml
 
       - name: Run Extraction Script
+        env:
+          SUB_URL: ${{ secrets.SUB_URL }} # 👈 核心：把 GitHub Secret 注入成 Python 能读取的环境变量
         run: python extract_nodes.py
 
       - name: Read traffic info
