@@ -30,19 +30,24 @@ jobs:
 
       - name: Run Extraction Script
         env:
-          SUB_URL: ${{ secrets.SUB_URL }} # 👈 核心：把 GitHub Secret 注入成 Python 能读取的环境变量
+          SUB_URL: ${{ secrets.SUB_URL }}
         run: python extract_nodes.py
 
       - name: Read traffic info
         id: traffic
         run: |
           if [ -f traffic_info.txt ]; then
-            # 将文件内容转为单行，用于 Telegram 消息
             TRAFFIC_INFO=$(cat traffic_info.txt | tr '\n' ' | ')
             echo "info=${TRAFFIC_INFO}" >> $GITHUB_OUTPUT
           else
             echo "info=无流量数据" >> $GITHUB_OUTPUT
           fi
+
+      - name: Get Beijing Time
+        id: time
+        run: |
+          export TZ='Asia/Shanghai'
+          echo "bj_time=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
 
       - name: Commit and Push if changed
         id: git_push
@@ -70,6 +75,7 @@ jobs:
           message: |
             *💡 节点同步任务执行成功！*
 
+            *📅 时间:* `${{ steps.time.outputs.bj_time }}` (北京时间)
             *项目:* `${{ github.repository }}`
             *触发方式:* `${{ github.event_name }}`
             *更新结果:* ${{ steps.git_push.outputs.updated == 'true' && '🎉 发现新节点，已自动更新并推送！' || '😴 节点无变化，无需更新。' }}
@@ -87,6 +93,7 @@ jobs:
           message: |
             *⚠️ 节点同步任务失败！*
 
+            *📅 时间:* `${{ steps.time.outputs.bj_time }}` (北京时间)
             *项目:* `${{ github.repository }}`
             *状态:* 提取脚本报错或 Git 推送冲突，请尽快检查！
 
