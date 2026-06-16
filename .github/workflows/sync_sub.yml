@@ -81,7 +81,7 @@ jobs:
             *更新结果:* ${{ steps.git_push.outputs.updated == 'true' && '🎉 发现新节点，已自动更新并推送！' || '😴 节点无变化，无需更新。' }}
             *📊 流量信息:* ${{ steps.traffic.outputs.info }}
 
-            [查看本次运行详情](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [点击查看配置文件](https://raw.githubusercontent.com/${{ github.repository }}/main/my_subscription.yaml)
 
       - name: Notify Telegram on Failure
         if: failure()
